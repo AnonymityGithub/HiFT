@@ -110,8 +110,8 @@ class RMSprop(Optimizer):
                 if p.grad.is_sparse:
                     raise RuntimeError('RMSprop does not support sparse gradients')
                 grads.append(p.grad)
-
-                state = self.state[p]
+                key_id = self.get_state_key(p)
+                state = self.state[key_id]
 
                 # State initialization
                 if len(state) == 0:
@@ -144,11 +144,12 @@ class RMSprop(Optimizer):
                       momentum=group['momentum'],
                       centered=group['centered'])
             for p_index, p in enumerate(params_with_grad):
-                self.state[p]["square_avg"] = square_avgs[p_index].to("cpu")
+                key_id = self.get_state_key(p)
+                self.state[key_id]["square_avg"] = square_avgs[p_index].to("cpu")
                 if group["momentum"] > 0:
-                    self.state[p]["momentum_buffer"] = momentum_buffer_list[p_index].to("cpu")
+                    self.state[key_id]["momentum_buffer"] = momentum_buffer_list[p_index].to("cpu")
                 if group["centered"]:
-                    self.state[p]["grad_avg"] = grad_avgs[p_index].to("cpu")
+                    self.state[key_id]["grad_avg"] = grad_avgs[p_index].to("cpu")
                 with torch.no_grad():
                     p.grad = None
             del params_with_grad,grads,square_avgs,grad_avgs,momentum_buffer_list

@@ -114,8 +114,8 @@ class Adam(Optimizer):
                     if p.grad.is_sparse:
                         raise RuntimeError('Adam does not support sparse gradients, please consider SparseAdam instead')
                     grads.append(p.grad)
-
-                    state = self.state[p]
+                    key_id = self.get_state_key(p)
+                    state = self.state[key_id]
                     # Lazy state initialization
                     if len(state) == 0:
                         state['step'] = 0
@@ -152,10 +152,11 @@ class Adam(Optimizer):
                    eps=group['eps'],
                    maximize=group['maximize'])
             for i, p in enumerate(params_with_grad):
-                self.state[p]["exp_avg"] = exp_avgs[i].to("cpu")
-                self.state[p]["exp_avg_sq"] = exp_avg_sqs[i].to("cpu")
+                key_id = self.get_state_key(p)
+                self.state[key_id]["exp_avg"] = exp_avgs[i].to("cpu")
+                self.state[key_id]["exp_avg_sq"] = exp_avg_sqs[i].to("cpu")
                 if group['amsgrad']:
-                    self.state[p]["max_exp_avg_sq"] = max_exp_avg_sqs[i].to("cpu")
+                    self.state[key_id]["max_exp_avg_sq"] = max_exp_avg_sqs[i].to("cpu")
                 with torch.no_grad():
                     p.grad = None
             del exp_avgs,exp_avg_sqs,max_exp_avg_sqs

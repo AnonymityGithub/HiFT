@@ -117,8 +117,8 @@ class AdamW(Optimizer):
                 if p.grad.is_sparse:
                     raise RuntimeError('AdamW does not support sparse gradients')
                 grads.append(p.grad)
-
-                state = self.state[p]
+                key_id = self.get_state_key(p)
+                state = self.state[key_id]
 
                 # State initialization
                 if len(state) == 0:
@@ -141,7 +141,7 @@ class AdamW(Optimizer):
                 state['step'] += 1
                 # record the step after step update
                 state_steps.append(state['step'])
-
+            
             F.adamw(params_with_grad,
                     grads,
                     exp_avgs,
@@ -156,10 +156,11 @@ class AdamW(Optimizer):
                     eps=group['eps'],
                     maximize=group['maximize'])
             for i, p in enumerate(params_with_grad):
-                self.state[p]["exp_avg"] = exp_avgs[i].to("cpu")
-                self.state[p]["exp_avg_sq"] = exp_avg_sqs[i].to("cpu")
+                key_id = self.get_state_key(p)
+                self.state[key_id]["exp_avg"] = exp_avgs[i].to("cpu")
+                self.state[key_id]["exp_avg_sq"] = exp_avg_sqs[i].to("cpu")
                 if amsgrad:
-                    self.state[p]["max_exp_avg_sq"] = max_exp_avg_sqs[i].to("cpu")
+                    self.state[key_id]["max_exp_avg_sq"] = max_exp_avg_sqs[i].to("cpu")
                 with torch.no_grad():
                     p.grad = None
             del exp_avgs,exp_avg_sqs,max_exp_avg_sqs

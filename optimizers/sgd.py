@@ -117,8 +117,6 @@ class SGD(Optimizer):
         if closure is not None:
             with torch.enable_grad():
                 loss = closure()
-        total_state_size = 0
-        total_grad_size = 0
         for group in self.param_groups:
             params_with_grad = []
             d_p_list = []
@@ -134,24 +132,15 @@ class SGD(Optimizer):
                 if p.grad is not None:
                     params_with_grad.append(p)
                     d_p_list.append(p.grad)
-                    if len(self.id_mapping) > 0:
-                        key_id = self.id_mapping[p]
-                    else:
-                        key_id = p
+                    key_id = self.get_state_key(p)
                     state = self.state[key_id]
                     if 'momentum_buffer' not in state:
                         momentum_buffer_list.append(None)
                     else:
                         if state['momentum_buffer'] is not None:
                             momentum_buffer_list.append(state['momentum_buffer'].to(p))
-                            total_state_size += state['momentum_buffer'].numel() * state['momentum_buffer'].element_size()
                         else:
                             momentum_buffer_list.append(state['momentum_buffer'])
-                    total_grad_size += p.grad.data.numel() * p.grad.data.element_size()
-            total_state_size = total_state_size / (1024 ** 2)
-            total_grad_size = total_grad_size / (1024 ** 2)
-            print(f'Total size of states in optimizer: {total_state_size:.2f} MB')
-            print(f'Total size of grad in optimizer: {total_grad_size:.2f} MB')
             F.sgd(params_with_grad,
                   d_p_list,
                   momentum_buffer_list,
@@ -164,12 +153,8 @@ class SGD(Optimizer):
 
             # update momentum_buffers in state
             for p, momentum_buffer in zip(params_with_grad, momentum_buffer_list):
-                if len(self.id_mapping) > 0:
-                    key_id = self.id_mapping[p]
-                else:
-                    key_id = p
+                key_id = self.get_state_key(p)
                 state = self.state[key_id]
-                # state['momentum_buffer'] = momentum_buffer
                 if momentum_buffer is not None:
                     state['momentum_buffer'] = momentum_buffer.to("cpu")
                 else:

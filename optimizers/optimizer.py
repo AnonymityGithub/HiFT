@@ -52,6 +52,12 @@ class Optimizer(TorchOptimizer):
 
         for param_group in param_groups:
             self.add_param_group(param_group)
+    def get_state_key(self,p):
+        if len(self.id_mapping) > 0:
+            key_id = self.id_mapping[p]
+        else:
+            key_id = p
+        return key_id
     def add_id_mapping(self,values):
         self.id_mapping.update(values)
     def clear_id_mapping(self):

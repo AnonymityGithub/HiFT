@@ -76,7 +76,8 @@ class Adagrad(Optimizer):
     def share_memory(self):
         for group in self.param_groups:
             for p in group['params']:
-                state = self.state[p]
+                key_id = self.get_state_key(p)
+                state = self.state[key_id]
                 state['sum'].share_memory_()
 
     @torch.no_grad()
@@ -91,8 +92,6 @@ class Adagrad(Optimizer):
         if closure is not None:
             with torch.enable_grad():
                 loss = closure()
-        totol_state_size = 0
-        total_grad_size = 0
         for group in self.param_groups:
             params_with_grad = []
             grads = []
@@ -103,7 +102,8 @@ class Adagrad(Optimizer):
                 if p.grad is not None:
                     params_with_grad.append(p)
                     grads.append(p.grad)
-                    state = self.state[p]
+                    key_id = self.get_state_key(p)
+                    state = self.state[key_id]
                     if len(state) ==0:
                         state['step'] = torch.tensor(0.0)
                         init_value = complex(self.initial_accumulator_value, self.initial_accumulator_value) if torch.is_complex(p) \
@@ -114,13 +114,6 @@ class Adagrad(Optimizer):
                     state['step'] += 1
                     # record the step after step update
                     state_steps.append(state['step'])
-            for grad,s_sum in zip(grads,state_sums):
-                totol_state_size += s_sum.numel() * s_sum.element_size()
-                total_grad_size += grad.numel() * grad.element_size()
-            total_grad_size = total_grad_size / (1024 ** 2)
-            totol_state_size  = totol_state_size / (1024 ** 2)
-            print(f'the size of states in optimizer: {totol_state_size:.2f} MB')
-            print(f'the size of grad in optimizer: {total_grad_size:.2f} MB')
             F.adagrad(params_with_grad,
                       grads,
                       state_sums,
@@ -131,7 +124,8 @@ class Adagrad(Optimizer):
                       eps=group['eps'],
                       maximize=group["maximize"] if "maximize" in group else None)
             for p,state_sum in zip(params_with_grad,state_sums):
-                self.state[p]["sum"] = state_sum.to("cpu")
+                key_id = self.get_state_key(p)
+                self.state[key_id]["sum"] = state_sum.to("cpu")
                 with torch.no_grad():
                     p.grad = None
             del params_with_grad,grads,state_sums,state_steps

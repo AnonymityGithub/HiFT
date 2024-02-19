@@ -417,10 +417,6 @@ class AdamW(Optimizer):
         loss = None
         if closure is not None:
             loss = closure()
-        # totol_state_size = 0
-        # total_grad_size = 0
-        states_size = []
-        grads_size = []
         for group in self.param_groups:
             for p in group["params"]:
                 if p.grad is None:
@@ -428,10 +424,7 @@ class AdamW(Optimizer):
                 grad = p.grad.data
                 if grad.is_sparse:
                     raise RuntimeError("Adam does not support sparse gradients, please consider SparseAdam instead")
-                if len(self.id_mapping) > 0:
-                    key_id = self.id_mapping[p]
-                else:
-                    key_id = p
+                key_id = self.get_state_key(p)
                 state = self.state[key_id]
                 # State initialization
                 if len(state) == 0:
@@ -458,15 +451,6 @@ class AdamW(Optimizer):
                     bias_correction1 = 1.0 - beta1 ** state["step"]
                     bias_correction2 = 1.0 - beta2 ** state["step"]
                     step_size = step_size * math.sqrt(bias_correction2) / bias_correction1
-                # totol_state_size += exp_avg.numel() * exp_avg.element_size()
-                # totol_state_size += exp_avg_sq.numel() * exp_avg.element_size()
-                # totol_state_size = totol_state_size / (1024 ** 2)
-                # total_grad_size += grad.numel() * grad.element_size()
-                # total_grad_size = total_grad_size / (1024 ** 2)
-                # states_size.append(deepcopy(totol_state_size))
-                # grads_size.append(deepcopy(total_grad_size))
-                # print(f'the size of states in optimizer: {totol_state_size:.2f} MB')
-                # print(f'the size of grad in optimizer: {total_grad_size:.2f} MB')
                 p.data.addcdiv_(exp_avg, denom, value=-step_size)
                 with torch.no_grad():
                     p.grad = None
@@ -485,8 +469,6 @@ class AdamW(Optimizer):
                 # Add weight decay at the end (fixed version)
                 if group["weight_decay"] > 0.0:
                     p.data.add_(p.data, alpha=(-group["lr"] * group["weight_decay"]))
-        # print(f'Total size of states in optimizer: {sum(states_size):.2f} MB')
-        # print(f'Total size of grad in optimizer: {sum(grads_size):.2f} MB')
         return loss
 
 
@@ -648,10 +630,6 @@ class Adafactor(Optimizer):
         loss = None
         if closure is not None:
             loss = closure()
-        totol_state_size = 0
-        total_grad_size = 0
-        states_size = []
-        grads_size = []
         for group in self.param_groups:
             for p in group["params"]:
                 if p.grad is None:
@@ -661,10 +639,7 @@ class Adafactor(Optimizer):
                     grad = grad.float()
                 if grad.is_sparse:
                     raise RuntimeError("Adafactor does not support sparse gradients.")
-                if len(self.id_mapping) > 0:
-                    key_id = self.id_mapping[p]
-                else:
-                    key_id = p
+                key_id = self.get_state_key(p)
                 state = self.state[key_id]
                 grad_shape = grad.shape
 
@@ -734,33 +709,20 @@ class Adafactor(Optimizer):
                 if p.dtype in {torch.float16, torch.bfloat16}:
                     p.copy_(p_data_fp32)
                 if use_first_moment:
-                    totol_state_size += exp_avg.numel() * exp_avg.element_size()
                     self.state[key_id]["exp_avg"] = exp_avg.to("cpu")
                     del exp_avg
                 if factored:
-                    totol_state_size += exp_avg_sq_col.numel() * exp_avg_sq_col.element_size()
                     self.state[key_id]["exp_avg_sq_col"] = exp_avg_sq_col.to("cpu")
                     del exp_avg_sq_col
-                    totol_state_size += exp_avg_sq_row.numel() * exp_avg_sq_row.element_size()
                     self.state[key_id]["exp_avg_sq_row"] = exp_avg_sq_row.to("cpu")
                     del exp_avg_sq_row
                 else:
-                    totol_state_size += exp_avg_sq.numel() * exp_avg_sq.element_size()
                     self.state[key_id]["exp_avg_sq"] = exp_avg_sq.to("cpu")
                     del exp_avg_sq
-                total_grad_size += grad.data.numel() * grad.data.element_size()
-                total_grad_size = total_grad_size / (1024 ** 2)
-                totol_state_size  = totol_state_size / (1024 ** 2)
-                states_size.append(deepcopy(totol_state_size))
-                grads_size.append(deepcopy(total_grad_size))
-                print(f'the size of states in optimizer: {totol_state_size:.2f} MB')
-                print(f'the size of grad in optimizer: {total_grad_size:.2f} MB')
                 with torch.no_grad():
                     p.grad = None
                 del p_data_fp32,update,state
                 torch.cuda.empty_cache()
-        print(f'Total size of states in optimizer: {sum(states_size):.2f} MB')
-        print(f'Total size of grad in optimizer: {sum(grads_size):.2f} MB')
         return loss
 
 
